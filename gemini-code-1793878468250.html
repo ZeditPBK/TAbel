@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Табель платных отработок | Группа 2576-ЭБ</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Кастомный скроллбар для таблицы на ПК */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-[#0b1120] text-slate-100 antialiased min-h-screen selection:bg-indigo-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    const MONTHS = [
+      { id: "Сентябрь", num: "09" },
+      { id: "Октябрь", num: "10" },
+      { id: "Ноябрь", num: "11" },
+      { id: "Декабрь", num: "12" },
+      { id: "Январь", num: "01" },
+      { id: "Февраль", num: "02" },
+      { id: "Март", num: "03" },
+      { id: "Апрель", num: "04" },
+      { id: "Май", num: "05" },
+      { id: "Июнь", num: "06" },
+      { id: "Июль", num: "07" },
+      { id: "Август", num: "08" }
+    ];
+
+    const SUBJECTS = [
+      { id: "opd", name: "Основы предпринимательской деятельности", short: "ОПД" },
+      { id: "soc", name: "Социология", short: "Социология" },
+      { id: "tv", name: "Теория вероятностей и мат. стат.", short: "Теор. вер." },
+      { id: "ei", name: "Экономическая информатика", short: "Эк. инф." },
+      { id: "pr", name: "Правовое регулирование", short: "Прав. рег." },
+      { id: "fiz", name: "Физическая культура", short: "Физ-ра" },
+      { id: "macro", name: "Макроэкономика", short: "Макроэк." },
+      { id: "rit", name: "Риторика", short: "Риторика" },
+      { id: "psy", name: "Психология и этика деловых отношений", short: "Психология" },
+    ];
+
+    const STUDENTS = [
+      "Басалай", "Бондарев", "Варлахов", "Волков", 
+      "Дмитриева", "Зенченко", "Ковалев", "Коваль", 
+      "Лавринович", "Мартинович", "Молчанов", "Никитенко", 
+      "Сивец", "Соболь", "Троцкая", "Чупринская"
+    ];
+
+    // Исходные данные за Октябрь
+    const INITIAL_OCTOBER = {
+      "Бондарев": { soc: [{ date: "16.10", count: 1, q: false }] },
+      "Варлахов": { 
+        fiz: [{ date: "13.10", count: 2, q: false }], 
+        soc: [{ date: "16.10", count: 1, q: false }], 
+        tv: [{ date: "28.10", count: 1, q: false }, { date: "29.10", count: 1, q: false }] 
+      },
+      "Волков": { opd: [{ date: "26.10", count: 1, q: false }, { date: "30.10", count: 1, q: false }] },
+      "Дмитриева": { 
+        opd: [{ date: "16.10", count: 1, q: false }], 
+        soc: [{ date: "16.10", count: 1, q: false }] 
+      },
+      "Коваль": { 
+        pr: [{ date: "12.10", count: 1, q: false }], 
+        soc: [{ date: "16.10", count: 1, q: false }] 
+      },
+      "Лавринович": { 
+        tv: [{ date: "01.10", count: 1, q: false }], 
+        opd: [{ date: "26.10", count: 1, q: false }, { date: "30.10", count: 1, q: false }] 
+      },
+      "Молчанов": { opd: [{ date: "16.10", count: 1, q: false }] },
+      "Никитенко": { 
+        tv: [{ date: "01.10", count: 1, q: false }, { date: "28.10", count: 1, q: true }], 
+        opd: [{ date: "02.10", count: 1, q: false }, { date: "26.10", count: 1, q: false }], 
+        soc: [{ date: "02.10", count: 1, q: false }, { date: "16.10", count: 1, q: false }], 
+        pr: [{ date: "12.10", count: 1, q: false }],
+        ei: [{ date: "28.10", count: 1, q: true }]
+      },
+      "Сивец": { opd: [{ date: "26.10", count: 1, q: false }] },
+      "Соболь": { soc: [{ date: "16.10", count: 1, q: false }] },
+      "Троцкая": { 
+        soc: [{ date: "16.10", count: 1, q: false }], 
+        opd: [{ date: "30.10", count: 1, q: false }],
+        tv: [{ date: "28.10", count: 1, q: true }],
+        ei: [{ date: "28.10", count: 1, q: true }]
+      },
+      "Чупринская": { 
+        ei: [{ date: "15.10", count: 1, q: false }], 
+        tv: [{ date: "15.10", count: 1, q: false }] 
+      }
+    };
+
+    const CLOUD_URL = "https://kvdb.io/AnonymousKey992348/group_2576_eb_dark_v2";
+
+    function App() {
+      const [currentMonth, setCurrentMonth] = useState("Октябрь");
+      const [viewMode, setViewMode] = useState("sheet1"); // sheet1 | sheet3 | mobile
+      const [searchQuery, setSearchQuery] = useState("");
+      const [onlyDebtors, setOnlyDebtors] = useState(false);
+      const [pricePerClass, setPricePerClass] = useState(() => {
+        return localStorage.getItem("tabel_price_2576") || "";
+      });
+
+      const [allData, setAllData] = useState(() => {
+        const saved = localStorage.getItem("tabel_dark_data_2576");
+        if (saved) {
+          try { return JSON.parse(saved); } catch(e) {}
+        }
+        return { "Октябрь": INITIAL_OCTOBER };
+      });
+
+      const [syncStatus, setSyncStatus] = useState("Загрузка...");
+      const [lastSyncTime, setLastSyncTime] = useState("");
+      const [isSaving, setIsSaving] = useState(false);
+      const [showHeader, setShowHeader] = useState(true);
+      const lastScrollY = useRef(0);
+
+      // Модальное окно редактирования ячейки
+      const [activeCell, setActiveCell] = useState(null); // { student, subject }
+      const [newDateInput, setNewDateInput] = useState("");
+      const [newCountInput, setNewCountInput] = useState(1);
+      const [newIsQuestionable, setNewIsQuestionable] = useState(false);
+
+      // Модальное окно сводки для чата
+      const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+
+      // Умное скрытие верхней панели при скролле вниз на телефоне
+      useEffect(() => {
+        const handleScroll = () => {
+          const currentY = window.scrollY;
+          if (currentY <= 50) {
+            setShowHeader(true);
+          } else if (currentY > lastScrollY.current + 6) {
+            setShowHeader(false);
+          } else if (currentY < lastScrollY.current - 6) {
+            setShowHeader(true);
+          }
+          lastScrollY.current = currentY;
+        };
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
+      }, []);
+
+      // Загрузка из облака при старте
+      useEffect(() => {
+        loadFromCloud();
+      }, []);
+
+      useEffect(() => {
+        localStorage.setItem("tabel_price_2576", pricePerClass);
+      }, [pricePerClass]);
+
+      const monthObj = useMemo(() => MONTHS.find(m => m.id === currentMonth) || MONTHS[1], [currentMonth]);
+      const monthData = useMemo(() => allData[currentMonth] || {}, [allData, currentMonth]);
+
+      const getTimeStr = () => {
+        const now = new Date();
+        return now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+      };
+
+      const loadFromCloud = async () => {
+        setSyncStatus("Синхронизация...");
+        try {
+          const res = await fetch(CLOUD_URL);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data === "object" && Object.keys(data).length > 0) {
+              setAllData(data);
+              localStorage.setItem("tabel_dark_data_2576", JSON.stringify(data));
+              setSyncStatus("Облако активно");
+              setLastSyncTime(getTimeStr());
+              return;
+            }
+          }
+          setSyncStatus("Локальная база");
+        } catch (err) {
+          setSyncStatus("Локальный режим");
+        }
+      };
+
+      const saveToCloud = async (updatedData) => {
+        setIsSaving(true);
+        setSyncStatus("Сохранение...");
+        localStorage.setItem("tabel_dark_data_2576", JSON.stringify(updatedData));
+        try {
+          const res = await fetch(CLOUD_URL, {
+            method: "POST",
+            body: JSON.stringify(updatedData)
+          });
+          if (res.ok) {
+            setSyncStatus("Сохранено в облако");
+            setLastSyncTime(getTimeStr());
+          } else {
+            setSyncStatus("Сохранено на устройстве");
+          }
+        } catch (err) {
+          setSyncStatus("Сохранено на устройстве");
+        } finally {
+          setIsSaving(false);
+        }
+      };
+
+      // Получение записей по студенту и предмету
+      const getEntries = (student, subjId) => {
+        return monthData[student]?.[subjId] || [];
+      };
+
+      // Статистика по студенту
+      const getStudentSummary = (student) => {
+        let exact = 0;
+        let questionable = 0;
+        const allDatesBySubj = [];
+
+        SUBJECTS.forEach(s => {
+          const entries = getEntries(student, s.id);
+          if (entries.length > 0) {
+            const dList = [];
+            entries.forEach(e => {
+              if (e.q) questionable += e.count;
+              else exact += e.count;
+              dList.push(`${e.date}${e.count > 1 ? ` (x${e.count})` : ""}${e.q ? "?" : ""}`);
+            });
+            allDatesBySubj.push({ short: s.short, text: dList.join(", ") });
+          }
+        });
+
+        return { exact, questionable, allDatesBySubj };
+      };
+
+      // Общая статистика за месяц
+      const monthTotals = useMemo(() => {
+        let totalExact = 0;
+        let totalQ = 0;
+        let debtorsCount = 0;
+        const bySubject = {};
+        SUBJECTS.forEach(s => { bySubject[s.id] = { exact: 0, q: 0 }; });
+
+        STUDENTS.forEach(st => {
+          const { exact, questionable } = getStudentSummary(st);
+          totalExact += exact;
+          totalQ += questionable;
+          if (exact > 0 || questionable > 0) debtorsCount++;
+
+          SUBJECTS.forEach(s => {
+            const entries = getEntries(st, s.id);
+            entries.forEach(e => {
+              if (e.q) bySubject[s.id].q += e.count;
+              else bySubject[s.id].exact += e.count;
+            });
+          });
+        });
+
+        return { totalExact, totalQ, debtorsCount, bySubject };
+      }, [monthData]);
+
+      // Добавление новой записи пропуска
+      const handleAddAbsence = (e) => {
+        e.preventDefault();
+        if (!activeCell) return;
+        const { student, subject } = activeCell;
+
+        let formattedDate = newDateInput.trim();
+        if (!formattedDate) formattedDate = `01.${monthObj.num}`;
+        else if (/^\d{1,2}$/.test(formattedDate)) {
+          formattedDate = `${formattedDate.padStart(2, "0")}.${monthObj.num}`;
+        }
+
+        const currentList = [...getEntries(student, subject.id)];
+        currentList.push({
+          date: formattedDate,
+          count: Math.max(1, parseInt(newCountInput, 10) || 1),
+          q: newIsQuestionable
+        });
+
+        const updated = {
+          ...allData,
+          [currentMonth]: {
+            ...(allData[currentMonth] || {}),
+            [student]: {
+              ...(allData[currentMonth]?.[student] || {}),
+              [subject.id]: currentList
+            }
+          }
+        };
+
+        setAllData(updated);
+        saveToCloud(updated);
+        setNewDateInput("");
+        setNewCountInput(1);
+        setNewIsQuestionable(false);
+      };
+
+      const handleRemoveEntry = (student, subjId, idx) => {
+        const currentList = [...getEntries(student, subjId)];
+        currentList.splice(idx, 1);
+
+        const updated = {
+          ...allData,
+          [currentMonth]: {
+            ...(allData[currentMonth] || {}),
+            [student]: {
+              ...(allData[currentMonth]?.[student] || {}),
+              [subjId]: currentList
+            }
+          }
+        };
+        setAllData(updated);
+        saveToCloud(updated);
+      };
+
+      const handleToggleEntryQuestionable = (student, subjId, idx) => {
+        const currentList = [...getEntries(student, subjId)];
+        currentList[idx] = { ...currentList[idx], q: !currentList[idx].q };
+
+        const updated = {
+          ...allData,
+          [currentMonth]: {
+            ...(allData[currentMonth] || {}),
+            [student]: {
+              ...(allData[currentMonth]?.[student] || {}),
+              [subjId]: currentList
+            }
+          }
+        };
+        setAllData(updated);
+        saveToCloud(updated);
+      };
+
+      const handleClearCell = (student, subjId) => {
+        const updated = {
+          ...allData,
+          [currentMonth]: {
+            ...(allData[currentMonth] || {}),
+            [student]: {
+              ...(allData[currentMonth]?.[student] || {}),
+              [subjId]: []
+            }
+          }
+        };
+        setAllData(updated);
+        saveToCloud(updated);
+        setActiveCell(null);
+      };
+
+      // Отфильтрованный список студентов
+      const filteredStudents = useMemo(() => {
+        return STUDENTS.filter(st => {
+          const matchesSearch = st.toLowerCase().includes(searchQuery.toLowerCase());
+          if (!matchesSearch) return false;
+          if (onlyDebtors) {
+            const { exact, questionable } = getStudentSummary(st);
+            return exact > 0 || questionable > 0;
+          }
+          return true;
+        });
+      }, [searchQuery, onlyDebtors, monthData]);
+
+      // Выгрузка в CSV для Excel
+      const exportToExcelCSV = () => {
+        let csv = "\uFEFF№;Фамилия;" + SUBJECTS.map(s => s.short).join(";") + ";Точных отработок;Под вопросом (?);Сумма (BYN)\n";
+        STUDENTS.forEach((st, i) => {
+          const { exact, questionable } = getStudentSummary(st);
+          const rowCells = SUBJECTS.map(s => {
+            const entries = getEntries(st, s.id);
+            if (entries.length === 0) return "";
+            const totalC = entries.reduce((acc, e) => acc + e.count, 0);
+            const datesStr = entries.map(e => `${e.date}${e.q ? "?" : ""}`).join(", ");
+            return `${totalC} (${datesStr})`;
+          });
+          const cost = pricePerClass ? (exact * parseFloat(pricePerClass)).toFixed(2) : "-";
+          csv += `${i + 1};${st};${rowCells.join(";")};${exact};${questionable};${cost}\n`;
+        });
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Табель_2576-ЭБ_${currentMonth}.csv`;
+        link.click();
+      };
+
+      // Экспорт / Импорт JSON-бэкапа
+      const exportJSONBackup = () => {
+        const blob = new Blob([JSON.stringify(allData, null, 2)], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Backup_2576-EB_${new Date().toISOString().slice(0,10)}.json`;
+        link.click();
+      };
+
+      const importJSONBackup = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            if (parsed && typeof parsed === "object") {
+              setAllData(parsed);
+              saveToCloud(parsed);
+              alert("База успешно загружена и синхронизирована!");
+            }
+          } catch (err) {
+            alert("Ошибка чтения файла резервной копии.");
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      // Текст сводки для Telegram / Viber
+      const generateSummaryText = () => {
+        let text = `📌 ВЕДОМОСТЬ ПЛАТНЫХ ОТРАБОТОК — ${currentMonth.toUpperCase()}\n`;
+        text += `🎓 Группа 2576-ЭБ (МИТСО)\n`;
+        text += `──────────────────────\n\n`;
+        let count = 0;
+
+        STUDENTS.forEach(st => {
+          const { exact, questionable } = getStudentSummary(st);
+          if (exact === 0 && questionable === 0) return;
+          count++;
+          const costStr = (pricePerClass && exact > 0) 
+            ? ` | 💰 ${(exact * parseFloat(pricePerClass)).toFixed(2)} BYN` 
+            : "";
+
+          text += `👤 ${st} — всего: ${exact} зан.${questionable > 0 ? ` (+${questionable} под ?)` : ""}${costStr}\n`;
+          SUBJECTS.forEach(s => {
+            const entries = getEntries(st, s.id);
+            if (entries.length > 0) {
+              const c = entries.reduce((a, b) => a + b.count, 0);
+              const d = entries.map(e => `${e.date}${e.count > 1 ? `x${e.count}` : ""}${e.q ? "?" : ""}`).join(", ");
+              text += `   • ${s.short}: ${c} (${d})\n`;
+            }
+          });
+          text += `\n`;
+        });
+
+        if (count === 0) {
+          text += `✅ В этом месяце платных отработок нет!\n`;
+        } else {
+          text += `──────────────────────\n`;
+          text += `📊 Итого по группе: ${monthTotals.totalExact} зан. у ${monthTotals.debtorsCount} чел.`;
+          if (monthTotals.totalQ > 0) text += ` (еще ${monthTotals.totalQ} уточняются)`;
+        }
+        return text;
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col bg-[#0b1120] text-slate-100 pb-20">
+          
+          {/* УМНАЯ ТЕМНО-СИНЯЯ ШАПКА (Прячется при скролле вниз, появляется при скролле вверх) */}
+          <header className={`sticky top-0 z-40 bg-[#0f172a]/95 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl transition-transform duration-300 ${
+            showHeader ? "translate-y-0" : "-translate-y-full"
+          }`}>
+            <div className="max-w-[1440px] mx-auto px-3 sm:px-6 py-3">
+              
+              {/* Верхний ряд: Название + Кнопки управления */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 font-extrabold text-white text-sm tracking-wider">
+                    2576
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white">
+                        Табель платных отработок
+                      </h1>
+                      <span className="hidden sm:inline-block px-2 py-0.5 text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
+                        2576-ЭБ
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                      <span className={`w-2 h-2 rounded-full ${isSaving ? "bg-amber-400 animate-ping" : "bg-emerald-400"}`}></span>
+                      <span>{syncStatus}{lastSyncTime ? ` (${lastSyncTime})` : ""}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Панель действий */}
+                <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                  <button
+                    onClick={() => saveToCloud(allData)}
+                    disabled={isSaving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition active:scale-95 flex items-center gap-1.5"
+                  >
+                    <span>💾</span>
+                    <span>{isSaving ? "Сохранение..." : "Сохранить"}</span>
+                  </button>
+
+                  <button
+                    onClick={loadFromCloud}
+                    title="Обновить из облака"
+                    className="p-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95"
+                  >
+                    🔄
+                  </button>
+
+                  <button
+                    onClick={() => setSummaryModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
+                  >
+                    <span>💬</span>
+                    <span className="hidden md:inline">Сводка в чат</span>
+                  </button>
+
+                  <button
+                    onClick={exportToExcelCSV}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1"
+                    title="Скачать таблицу для Excel"
+                  >
+                    <span>📊</span>
+                    <span className="hidden lg:inline">Excel</span>
+                  </button>
+
+                  <button
+                    onClick={exportJSONBackup}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition hidden sm:flex items-center gap-1"
+                    title="Скачать резервную копию базы"
+                  >
+                    <span>⬇️</span>
+                    <span className="hidden xl:inline">Бэкап</span>
+                  </button>
+
+                  <label className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer hidden sm:flex items-center gap-1" title="Загрузить базу из файла">
+                    <span>⬆️</span>
+                    <input type="file" accept=".json" onChange={importJSONBackup} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              {/* Второй ряд: Лента 12 месяцев */}
+              <div className="flex items-center gap-1.5 mt-3 overflow-x-auto no-scrollbar pb-1">
+                {MONTHS.map(m => {
+                  const isActive = currentMonth === m.id;
+                  const hasData = allData[m.id] && Object.keys(allData[m.id]).length > 0;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setCurrentMonth(m.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        isActive
+                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 ring-1 ring-indigo-400"
+                          : "bg-slate-800/70 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                      }`}
+                    >
+                      <span>{m.id}</span>
+                      {hasData && (
+                        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-white" : "bg-indigo-400"}`}></span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Третий ряд: Переключатель Лист 1 / Лист 3 / Телефон + Фильтры */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-800/80 text-xs">
+                
+                {/* Форматы отображения */}
+                <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 w-full sm:w-auto">
+                  <button
+                    onClick={() => setViewMode("sheet1")}
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg font-semibold transition ${
+                      viewMode === "sheet1"
+                        ? "bg-indigo-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Лист 1: Даты в ячейках
+                  </button>
+                  <button
+                    onClick={() => setViewMode("sheet3")}
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg font-semibold transition ${
+                      viewMode === "sheet3"
+                        ? "bg-indigo-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Лист 3: Счетчик цифр
+                  </button>
+                  <button
+                    onClick={() => setViewMode("mobile")}
+                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg font-semibold transition ${
+                      viewMode === "mobile"
+                        ? "bg-indigo-600 text-white shadow"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    📱 Карточки
+                  </button>
+                </div>
+
+                {/* Поиск, фильтр должников и тариф BYN */}
+                <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto justify-end">
+                  <div className="relative flex-1 sm:flex-initial sm:w-44">
+                    <input
+                      type="text"
+                      placeholder="Поиск по фамилии..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-7 pr-2.5 py-1 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                    <span className="absolute left-2.5 top-1.5 text-slate-500 text-[11px]">🔍</span>
+                  </div>
+
+                  <button
+                    onClick={() => setOnlyDebtors(!onlyDebtors)}
+                    className={`px-2.5 py-1 rounded-lg border font-medium transition flex items-center gap-1 ${
+                      onlyDebtors
+                        ? "bg-rose-500/20 border-rose-500/50 text-rose-300"
+                        : "bg-slate-900 border-slate-700/80 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <span>🔥</span>
+                    <span>Только с отработкой</span>
+                  </button>
+
+                  <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg px-2 py-1">
+                    <span className="text-slate-400 mr-1.5 text-[11px]">Тариф:</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="0.00"
+                      value={pricePerClass}
+                      onChange={e => setPricePerClass(e.target.value)}
+                      className="w-14 bg-transparent text-right font-mono font-bold text-emerald-400 focus:outline-none text-xs"
+                    />
+                    <span className="text-slate-500 ml-1 text-[10px] font-semibold">BYN</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </header>
+
+          {/* ОСНОВНОЙ КОНТЕНТ */}
+          <main className="max-w-[1440px] w-full mx-auto px-3 sm:px-6 mt-4 space-y-4">
+            
+            {/* Карточки сводной статистики за выбранный месяц */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-lg">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Период учета</div>
+                <div className="mt-1 flex items-baseline justify-between">
+                  <span className="text-lg sm:text-2xl font-extrabold text-white">{currentMonth}</span>
+                  <span className="text-xs font-mono text-indigo-400">{STUDENTS.length} студ.</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-lg">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Людей на отработку</div>
+                <div className="mt-1 flex items-baseline justify-between">
+                  <span className="text-lg sm:text-2xl font-extrabold text-rose-400 font-mono">{monthTotals.debtorsCount}</span>
+                  <span className="text-xs text-slate-500">из {STUDENTS.length} чел.</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-lg">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Всего занятий (точных)</div>
+                <div className="mt-1 flex items-baseline justify-between">
+                  <span className="text-lg sm:text-2xl font-extrabold text-amber-400 font-mono">{monthTotals.totalExact}</span>
+                  {monthTotals.totalQ > 0 && (
+                    <span className="text-xs font-semibold text-amber-300/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      +{monthTotals.totalQ} под ?
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-lg">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Сумма по группе</div>
+                <div className="mt-1 flex items-baseline justify-between">
+                  <span className="text-lg sm:text-2xl font-extrabold text-emerald-400 font-mono">
+                    {pricePerClass ? `${(monthTotals.totalExact * parseFloat(pricePerClass)).toFixed(2)}` : "—"}
+                  </span>
+                  <span className="text-xs text-slate-500 font-semibold">BYN</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ТАБЛИЧНЫЙ ВИД (ЛИСТ 1 И ЛИСТ 3) */}
+            {viewMode !== "mobile" && (
+              <div className="bg-[#0f172a] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-900/95 text-slate-300 border-b border-slate-800 font-bold uppercase tracking-wider text-[11px]">
+                        <th className="py-3 px-2 text-center w-9 text-slate-500">№</th>
+                        <th className="py-3 px-3 sticky left-0 z-20 bg-slate-900 min-w-[140px] sm:min-w-[165px] border-r border-slate-800 shadow-[4px_0_12px_rgba(0,0,0,0.4)]">
+                          Фамилия
+                        </th>
+                        {SUBJECTS.map(s => (
+                          <th key={s.id} className="py-3 px-2 text-center min-w-[105px] border-r border-slate-800/60" title={s.name}>
+                            {s.short}
+                          </th>
+                        ))}
+                        <th className="py-3 px-2.5 text-center bg-slate-950/60 border-r border-slate-800 min-w-[75px] text-rose-400">
+                          Точных
+                        </th>
+                        <th className="py-3 px-2.5 text-center bg-slate-950/60 border-r border-slate-800 min-w-[70px] text-amber-400">
+                          Под ?
+                        </th>
+                        {pricePerClass && (
+                          <th className="py-3 px-2.5 text-center bg-slate-950/60 border-r border-slate-800 min-w-[85px] text-emerald-400">
+                            BYN
+                          </th>
+                        )}
+                        {viewMode === "sheet3" && (
+                          <th className="py-3 px-3 text-left min-w-[230px] text-slate-400">
+                            Расшифровка дат пропусков
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {filteredStudents.map((student) => {
+                        const origIndex = STUDENTS.indexOf(student) + 1;
+                        const { exact, questionable, allDatesBySubj } = getStudentSummary(student);
+                        const hasAny = exact > 0 || questionable > 0;
+
+                        return (
+                          <tr 
+                            key={student} 
+                            className={`transition-colors group ${
+                              hasAny ? "bg-slate-900/30 hover:bg-slate-800/60" : "hover:bg-slate-900/50"
+                            }`}
+                          >
+                            <td className="py-2.5 px-2 text-center font-mono text-slate-500 text-[11px]">
+                              {origIndex}
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-slate-100 sticky left-0 z-10 bg-[#0f172a] group-hover:bg-[#162036] border-r border-slate-800 shadow-[4px_0_12px_rgba(0,0,0,0.4)] whitespace-nowrap flex items-center justify-between">
+                              <span>{student}</span>
+                              {exact === 0 && questionable === 0 && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/40" title="Без пропусков"></span>
+                              )}
+                            </td>
+
+                            {SUBJECTS.map(s => {
+                              const entries = getEntries(student, s.id);
+                              const exactC = entries.filter(e => !e.q).reduce((a, b) => a + b.count, 0);
+                              const qC = entries.filter(e => e.q).reduce((a, b) => a + b.count, 0);
+                              const totalC = exactC + qC;
+
+                              return (
+                                <td
+                                  key={s.id}
+                                  onClick={() => setActiveCell({ student, subject: s })}
+                                  className="p-1.5 text-center border-r border-slate-800/50 cursor-pointer hover:bg-indigo-500/10 transition relative select-none"
+                                >
+                                  {totalC > 0 ? (
+                                    <div className="flex flex-col items-center justify-center gap-0.5">
+                                      {viewMode === "sheet1" ? (
+                                        <div className="flex flex-wrap items-center justify-center gap-1">
+                                          {entries.map((e, i) => (
+                                            <span
+                                              key={i}
+                                              className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold border ${
+                                                e.q
+                                                  ? "bg-amber-500/15 text-amber-300 border-amber-500/40"
+                                                  : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                                              }`}
+                                            >
+                                              {e.count} ({e.date}){e.q ? "?" : ""}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-center gap-1 font-mono font-bold">
+                                          {exactC > 0 && (
+                                            <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                              {exactC}
+                                            </span>
+                                          )}
+                                          {qC > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px]">
+                                              +{qC}?
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-700 group-hover:text-slate-500 text-xs font-mono">+</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+
+                            {/* Итого точных по студенту */}
+                            <td className="py-2 px-2 text-center font-mono font-extrabold border-r border-slate-800 bg-slate-950/40">
+                              {exact > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                  {exact}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">0</span>
+                              )}
+                            </td>
+
+                            {/* Под вопросом */}
+                            <td className="py-2 px-2 text-center font-mono font-bold border-r border-slate-800 bg-slate-950/40">
+                              {questionable > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  {questionable}?
+                                </span>
+                              ) : (
+                                <span className="text-slate-700">—</span>
+                              )}
+                            </td>
+
+                            {/* Сумма в BYN */}
+                            {pricePerClass && (
+                              <td className="py-2 px-2 text-center font-mono font-bold text-emerald-400 border-r border-slate-800 bg-slate-950/40">
+                                {exact > 0 ? (exact * parseFloat(pricePerClass)).toFixed(2) : "—"}
+                              </td>
+                            )}
+
+                            {/* Правая колонка с датами для Листа 3 */}
+                            {viewMode === "sheet3" && (
+                              <td className="py-2 px-3 text-[11px] text-slate-300">
+                                {allDatesBySubj.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {allDatesBySubj.map((item, idx) => (
+                                      <span key={idx} className="bg-slate-800/90 border border-slate-700 px-1.5 py-0.5 rounded">
+                                        <strong className="text-indigo-300">{item.short}:</strong> {item.text}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-600">Пропусков нет</span>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+
+                    {/* ИТОГОВАЯ СТРОКА ПО ПРЕДМЕТАМ */}
+                    <tfoot>
+                      <tr className="bg-slate-900/95 border-t-2 border-slate-700 font-bold text-xs">
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-3 sticky left-0 z-10 bg-slate-900 border-r border-slate-800 text-indigo-300 uppercase tracking-wider text-[11px]">
+                          Итого по группе:
+                        </td>
+                        {SUBJECTS.map(s => {
+                          const st = monthTotals.bySubject[s.id];
+                          return (
+                            <td key={s.id} className="py-3 px-2 text-center font-mono border-r border-slate-800/60">
+                              {st.exact > 0 || st.q > 0 ? (
+                                <span className="text-slate-200">
+                                  {st.exact}{st.q > 0 ? <span className="text-amber-400 ml-0.5">(+{st.q}?)</span> : ""}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">0</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="py-3 px-2 text-center font-mono text-rose-400 text-sm border-r border-slate-800">
+                          {monthTotals.totalExact}
+                        </td>
+                        <td className="py-3 px-2 text-center font-mono text-amber-400 border-r border-slate-800">
+                          {monthTotals.totalQ > 0 ? `${monthTotals.totalQ}?` : "0"}
+                        </td>
+                        {pricePerClass && (
+                          <td className="py-3 px-2 text-center font-mono text-emerald-400 border-r border-slate-800">
+                            {(monthTotals.totalExact * parseFloat(pricePerClass)).toFixed(2)}
+                          </td>
+                        )}
+                        {viewMode === "sheet3" && (
+                          <td className="py-3 px-3 text-slate-400 text-[11px]">
+                            Всего должников: {monthTotals.debtorsCount} чел.
+                          </td>
+                        )}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* МОБИЛЬНЫЙ ВИД (КАРТОЧКИ СТУДЕНТОВ ДЛЯ ТЕЛЕФОНА) */}
+            {viewMode === "mobile" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filteredStudents.map(student => {
+                  const origIndex = STUDENTS.indexOf(student) + 1;
+                  const { exact, questionable } = getStudentSummary(student);
+                  const hasDebt = exact > 0 || questionable > 0;
+
+                  return (
+                    <div
+                      key={student}
+                      className={`rounded-2xl p-3.5 border transition ${
+                        hasDebt
+                          ? "bg-slate-900/90 border-slate-700/90 shadow-lg"
+                          : "bg-slate-900/40 border-slate-800/70"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 font-mono text-xs flex items-center justify-center">
+                            {origIndex}
+                          </span>
+                          <span className="font-bold text-base text-white">{student}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {exact > 0 && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              {exact} отр.
+                            </span>
+                          )}
+                          {questionable > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              +{questionable}?
+                            </span>
+                          )}
+                          {!hasDebt && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Чисто ✓
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Сетка из 9 предметов внутри карточки */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {SUBJECTS.map(s => {
+                          const entries = getEntries(student, s.id);
+                          const c = entries.reduce((a, b) => a + b.count, 0);
+                          const hasQ = entries.some(e => e.q);
+
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => setActiveCell({ student, subject: s })}
+                              className={`p-2 rounded-xl border text-left transition flex flex-col justify-between ${
+                                c > 0
+                                  ? hasQ
+                                    ? "bg-amber-500/10 border-amber-500/40 text-amber-200"
+                                    : "bg-rose-500/10 border-rose-500/30 text-rose-200"
+                                  : "bg-slate-950/50 border-slate-800/80 text-slate-400 hover:border-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className="text-[11px] font-semibold truncate">{s.short}</span>
+                                <span className="text-xs font-mono font-extrabold ml-1">{c > 0 ? c : "+"}</span>
+                              </div>
+                              {c > 0 && (
+                                <div className="mt-1 text-[10px] font-mono opacity-80 truncate w-full">
+                                  {entries.map(e => `${e.date}${e.q ? "?" : ""}`).join(", ")}
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </main>
+
+          {/* МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ЯЧЕЙКИ (ДОБАВЛЕНИЕ / УДАЛЕНИЕ ДАТ) */}
+          {activeCell && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+              <div className="bg-[#0f172a] border border-slate-700 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl space-y-4">
+                
+                <div className="flex items-start justify-between pb-3 border-b border-slate-800">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-indigo-400">{currentMonth}</div>
+                    <h3 className="text-lg font-extrabold text-white mt-0.5">{activeCell.student}</h3>
+                    <p className="text-xs text-slate-400">{activeCell.subject.name}</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveCell(null)}
+                    className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Текущие пропуски в этой ячейке */}
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-slate-400">Записанные пропуски за {currentMonth.toLowerCase()}:</div>
+                  {getEntries(activeCell.student, activeCell.subject.id).length === 0 ? (
+                    <div className="text-xs text-slate-500 bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+                      По этому предмету пропусков нет
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                      {getEntries(activeCell.student, activeCell.subject.id).map((entry, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2 font-mono">
+                            <span className={`px-2 py-0.5 rounded font-bold ${
+                              entry.q ? "bg-amber-500/20 text-amber-300" : "bg-rose-500/20 text-rose-300"
+                            }`}>
+                              {entry.count} зан.
+                            </span>
+                            <span className="text-white font-semibold">Дата: {entry.date}</span>
+                            {entry.q && <span className="text-amber-400 text-[11px]">(Под вопросом ?)</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleEntryQuestionable(activeCell.student, activeCell.subject.id, idx)}
+                              className={`px-2 py-1 rounded text-[11px] font-bold border ${
+                                entry.q
+                                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                  : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                              }`}
+                              title="Пометить/снять вопрос"
+                            >
+                              ?
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEntry(activeCell.student, activeCell.subject.id, idx)}
+                              className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 font-bold"
+                            >
+                              Удалить
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Форма быстрого добавления */}
+                <form onSubmit={handleAddAbsence} className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                  <div className="text-xs font-bold text-indigo-300">➕ Добавить пропуск</div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Число или дата:</label>
+                      <input
+                        type="text"
+                        placeholder={`напр. 18 или 18.${monthObj.num}`}
+                        value={newDateInput}
+                        onChange={e => setNewDateInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Кол-во занятий:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={newCountInput}
+                        onChange={e => setNewCountInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono font-bold text-center focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none pt-1">
+                    <input
+                      type="checkbox"
+                      checked={newIsQuestionable}
+                      onChange={e => setNewIsQuestionable(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-0"
+                    />
+                    <span>Пометить как спорный «Под вопросом (?)»</span>
+                  </label>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleClearCell(activeCell.student, activeCell.subject.id)}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 transition"
+                    >
+                      Очистить всё
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition"
+                    >
+                      Добавить запись
+                    </button>
+                  </div>
+                </form>
+
+              </div>
+            </div>
+          )}
+
+          {/* МОДАЛЬНОЕ ОКНО ГЕНЕРАЦИИ СВОДКИ В ЧАТ */}
+          {summaryModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-[#0f172a] border border-slate-700 w-full max-w-lg rounded-2xl p-5 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <h3 className="font-extrabold text-white text-base">💬 Готовая сводка для группы ({currentMonth})</h3>
+                  <button
+                    onClick={() => setSummaryModalOpen(false)}
+                    className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <textarea
+                  readOnly
+                  rows={12}
+                  value={generateSummaryText()}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none"
+                />
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setSummaryModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  >
+                    Закрыть
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generateSummaryText());
+                      alert("Скопировано в буфер обмена!");
+                    }}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20"
+                  >
+                    📋 Скопировать текст
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
