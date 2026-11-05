@@ -165,6 +165,11 @@
         return () => window.removeEventListener("scroll", handleScroll);
       }, []);
 
+     // Твои ключи JSONBin.io
+      const JSONBIN_BIN_ID = "6aec6e96ac6210605a6ef023";
+      const JSONBIN_API_KEY = "$2a$10$igyI7EDvVBuwbkHqRGzdle5Bu/OQ8P8G6Iw48ti25iCbtrywyj/G2";
+      const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
+
       // Загрузка из облака при старте
       useEffect(() => {
         loadFromCloud();
@@ -185,18 +190,28 @@
       const loadFromCloud = async () => {
         setSyncStatus("Синхронизация...");
         try {
-          const res = await fetch(CLOUD_URL);
+          const res = await fetch(`${JSONBIN_URL}/latest`, {
+            headers: {
+              "X-Master-Key": JSONBIN_API_KEY
+            }
+          });
           if (res.ok) {
-            const data = await res.json();
-            if (data && typeof data === "object" && Object.keys(data).length > 0) {
+            const result = await res.json();
+            const data = result.record;
+            // Проверяем, что в облаке уже лежит реальный табель, а не {"test": true}
+            if (data && typeof data === "object" && data["Октябрь"]) {
               setAllData(data);
               localStorage.setItem("tabel_dark_data_2576", JSON.stringify(data));
               setSyncStatus("Облако активно");
               setLastSyncTime(getTimeStr());
               return;
+            } else {
+              // Если в облаке пока только {"test": true}, сразу заливаем туда наш табель
+              await saveToCloud(allData);
+              return;
             }
           }
-          setSyncStatus("Локальная база");
+          setSyncStatus("Ошибка доступа к облаку");
         } catch (err) {
           setSyncStatus("Локальный режим");
         }
@@ -207,15 +222,19 @@
         setSyncStatus("Сохранение...");
         localStorage.setItem("tabel_dark_data_2576", JSON.stringify(updatedData));
         try {
-          const res = await fetch(CLOUD_URL, {
-            method: "POST",
+          const res = await fetch(JSONBIN_URL, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Master-Key": JSONBIN_API_KEY
+            },
             body: JSON.stringify(updatedData)
           });
           if (res.ok) {
             setSyncStatus("Сохранено в облако");
             setLastSyncTime(getTimeStr());
           } else {
-            setSyncStatus("Сохранено на устройстве");
+            setSyncStatus("Ошибка облака (сохранено локально)");
           }
         } catch (err) {
           setSyncStatus("Сохранено на устройстве");
