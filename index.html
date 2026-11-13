@@ -27,10 +27,18 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     
+    /* Основной скроллбар страницы и таблиц */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Увеличенный удобный ползунок специально для фильтра студентов на ПК */
+    .cal-scrollbar::-webkit-scrollbar { height: 10px; }
+    .cal-scrollbar::-webkit-scrollbar-track { background: #090d16; border-radius: 8px; border: 1px solid #1e293b; }
+    .cal-scrollbar::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 8px; cursor: pointer; }
+    .cal-scrollbar::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+    .cal-scrollbar { scrollbar-width: auto; scrollbar-color: #4f46e5 #090d16; }
   </style>
 </head>
 <body class="bg-[#0b1120] text-slate-100 antialiased min-h-screen selection:bg-indigo-500 selection:text-white">
@@ -39,20 +47,24 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
 
+    // Реальная сетка календаря на 2026/2027 учебный год
+    // offset: сдвиг первого числа относительно Понедельника (0 = Пн, 1 = Вт, 2 = Ср, 3 = Чт, 4 = Пт, 5 = Сб, 6 = Вс)
     const MONTHS = [
-      { id: "Сентябрь", num: "09", days: 30 },
-      { id: "Октябрь", num: "10", days: 31 },
-      { id: "Ноябрь", num: "11", days: 30 },
-      { id: "Декабрь", num: "12", days: 31 },
-      { id: "Январь", num: "01", days: 31 },
-      { id: "Февраль", num: "02", days: 28 },
-      { id: "Март", num: "03", days: 31 },
-      { id: "Апрель", num: "04", days: 30 },
-      { id: "Май", num: "05", days: 31 },
-      { id: "Июнь", num: "06", days: 30 },
-      { id: "Июль", num: "07", days: 31 },
-      { id: "Август", num: "08", days: 31 }
+      { id: "Сентябрь", num: "09", days: 30, offset: 1, year: 2026 }, // 1 сен 2026 — Вторник
+      { id: "Октябрь", num: "10", days: 31, offset: 3, year: 2026 },  // 1 окт 2026 — Четверг
+      { id: "Ноябрь", num: "11", days: 30, offset: 6, year: 2026 },   // 1 ноя 2026 — Воскресенье
+      { id: "Декабрь", num: "12", days: 31, offset: 1, year: 2026 },  // 1 дек 2026 — Вторник
+      { id: "Январь", num: "01", days: 31, offset: 4, year: 2027 },   // 1 янв 2027 — Пятница
+      { id: "Февраль", num: "02", days: 28, offset: 0, year: 2027 },  // 1 фев 2027 — Понедельник
+      { id: "Март", num: "03", days: 31, offset: 0, year: 2027 },     // 1 мар 2027 — Понедельник
+      { id: "Апрель", num: "04", days: 30, offset: 3, year: 2027 },   // 1 апр 2027 — Четверг
+      { id: "Май", num: "05", days: 31, offset: 5, year: 2027 },      // 1 мая 2027 — Суббота
+      { id: "Июнь", num: "06", days: 30, offset: 1, year: 2027 },     // 1 июн 2027 — Вторник
+      { id: "Июль", num: "07", days: 31, offset: 3, year: 2027 },     // 1 июл 2027 — Четверг
+      { id: "Август", num: "08", days: 31, offset: 6, year: 2027 }    // 1 авг 2027 — Воскресенье
     ];
+
+    const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
     const SUBJECTS = [
       { id: "opd", name: "Основы предпринимательской деятельности", short: "ОПД" },
@@ -172,6 +184,7 @@
       // Состояния Гибридного Календаря в Уголке Администратора
       const [calStudent, setCalStudent] = useState("ALL"); // "ALL" или конкретная фамилия
       const [calSelectedDates, setCalSelectedDates] = useState([]); // Массив дат вида ["02.10", "16.10"]
+      const [lastClickedDayNum, setLastClickedDayNum] = useState(null); // Для выделения диапазона через Shift + Клик
 
       // Модальное окно сводки для чата
       const [summaryModalOpen, setSummaryModalOpen] = useState(false);
@@ -179,6 +192,7 @@
       // Сброс выбранных дат календаря при смене месяца
       useEffect(() => {
         setCalSelectedDates([]);
+        setLastClickedDayNum(null);
       }, [currentMonth]);
 
       // Проверка ссылки-приглашения для помощника администратора (?admin=...)
@@ -348,7 +362,7 @@
         return { unexcused, unexcusedHours, excused, total: unexcused + excused, allDatesBySubj };
       };
 
-      // Общая статистика за месяц
+      // Общая статистика за месяц (без суммарного счетчика неуважительных часов)
       const monthTotals = useMemo(() => {
         let totalUnexcused = 0;
         let totalExcused = 0;
@@ -373,8 +387,7 @@
           });
         });
 
-        const totalUnexcusedHours = totalUnexcused * 2;
-        return { totalUnexcused, totalUnexcusedHours, totalExcused, studentsWithAbsences, studentsWithPaid, bySubject };
+        return { totalUnexcused, totalExcused, studentsWithAbsences, studentsWithPaid, bySubject };
       }, [monthData]);
 
       // =========================================================================
@@ -401,9 +414,14 @@
             });
           });
 
+          // Индекс дня недели (0 = Пн ... 6 = Вс)
+          const weekdayIndex = (monthObj.offset + d - 1) % 7;
+
           days.push({
             dayNum: d,
             dateStr,
+            weekdayIndex,
+            isSunday: weekdayIndex === 6,
             unexcusedCount,
             excusedCount,
             total: unexcusedCount + excusedCount
@@ -454,10 +472,25 @@
         return results;
       }, [calSelectedDates, calStudent, monthData]);
 
-      const toggleCalDate = (dateStr) => {
-        setCalSelectedDates(prev =>
-          prev.includes(dateStr) ? prev.filter(d => d !== dateStr) : [...prev, dateStr]
-        );
+      // Клик по числу календаря (с поддержкой выделения диапазона через Shift + Клик)
+      const handleCalendarDayClick = (day, event) => {
+        if (event.shiftKey && lastClickedDayNum !== null) {
+          const start = Math.min(lastClickedDayNum, day.dayNum);
+          const end = Math.max(lastClickedDayNum, day.dayNum);
+          const rangeDates = [];
+          for (let i = start; i <= end; i++) {
+            rangeDates.push(`${String(i).padStart(2, "0")}.${monthObj.num}`);
+          }
+          setCalSelectedDates(prev => {
+            const combined = new Set([...prev, ...rangeDates]);
+            return Array.from(combined);
+          });
+        } else {
+          setCalSelectedDates(prev =>
+            prev.includes(day.dateStr) ? prev.filter(d => d !== day.dateStr) : [...prev, day.dateStr]
+          );
+        }
+        setLastClickedDayNum(day.dayNum);
       };
 
       const selectAllDaysWithAbsences = () => {
@@ -493,6 +526,23 @@
         });
 
         const updated = { ...allData, [currentMonth]: monthCopy };
+        setAllData(updated);
+        saveToCloud(updated);
+      };
+
+      // Полная очистка всех записей выбранного месяца (Предложение 5)
+      const handleClearCurrentMonth = () => {
+        if (!isAdmin) return;
+        const confirmed = window.confirm(
+          `Вы уверены, что хотите полностью очистить все записи пропусков за ${currentMonth}? Это действие сбросит данные текущего месяца для всей группы.`
+        );
+        if (!confirmed) return;
+
+        const updated = {
+          ...allData,
+          [currentMonth]: {}
+        };
+        setCalSelectedDates([]);
         setAllData(updated);
         saveToCloud(updated);
       };
@@ -667,7 +717,7 @@
         });
       }, [searchQuery, onlyDebtors, monthData]);
 
-      // Выгрузка в CSV для Excel (с новым столбцом Неуважительных часов)
+      // Выгрузка в CSV для Excel
       const exportToExcelCSV = () => {
         const bynHeader = activeTariff > 0 ? ";Сумма к оплате (BYN)" : "";
         let csv = "\uFEFF№;Фамилия;" + SUBJECTS.map(s => s.short).join(";") + ";Неуважительные (зан.);Неуважительные часы (ч.);Уважительные (зан.)" + bynHeader + "\n";
@@ -718,7 +768,7 @@
         reader.readAsText(file);
       };
 
-      // Генерация текстовой сводки для мессенджеров
+      // Генерация текстовой сводки для мессенджеров (без общего счетчика неуважительных часов в подвале)
       const generateSummaryText = () => {
         let text = `📌 ВЕДОМОСТЬ ПРОПУСКОВ И ОТРАБОТОК — ${currentMonth.toUpperCase()}\n`;
         text += `🎓 Группа 2576-ЭБ | Последнее редактирование: ${lastEdited}\n`;
@@ -749,7 +799,7 @@
           text += `✅ В этом месяце пропусков практических занятий нет!\n`;
         } else {
           text += `──────────────────────\n`;
-          text += `📊 Итого по группе: неуважительных — ${monthTotals.totalUnexcused} зан. (${monthTotals.totalUnexcusedHours} ч.), уважительных — ${monthTotals.totalExcused} зан.`;
+          text += `📊 Итого по группе: неуважительных — ${monthTotals.totalUnexcused} зан., уважительных — ${monthTotals.totalExcused} зан.`;
           if (activeTariff > 0 && monthTotals.totalUnexcused > 0) {
             text += `\n💳 Общая сумма платных отработок: ${(monthTotals.totalUnexcused * activeTariff).toFixed(2)} BYN`;
           }
@@ -939,14 +989,14 @@
           {/* ОСНОВНОЙ КОНТЕНТ */}
           <main className="max-w-[1440px] w-full mx-auto px-3 sm:px-6 mt-3 sm:mt-4 space-y-4">
             
-            {/* Компактные плашки сводной статистики */}
+            {/* Компактные плашки сводной статистики (без общего счетчика неуважительных часов) */}
             {viewMode !== "admin" && (
-              <div className={`grid gap-2.5 sm:gap-4 ${activeTariff > 0 ? "grid-cols-2 lg:grid-cols-5" : "grid-cols-2 lg:grid-cols-4"}`}>
+              <div className={`grid gap-2.5 sm:gap-4 ${activeTariff > 0 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3"}`}>
                 <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 shadow-lg">
                   <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400">Месяц</div>
                   <div className="mt-1 flex items-baseline justify-between">
                     <span className="text-base sm:text-2xl font-extrabold text-white truncate">{currentMonth}</span>
-                    <span className="text-[11px] font-mono text-indigo-400">{STUDENTS.length} чел.</span>
+                    <span className="text-[11px] font-mono text-indigo-400 hidden sm:inline">{STUDENTS.length} чел.</span>
                   </div>
                 </div>
 
@@ -959,14 +1009,6 @@
                 </div>
 
                 <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 shadow-lg">
-                  <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-amber-300/80">Неуваж. часы</div>
-                  <div className="mt-1 flex items-baseline justify-between">
-                    <span className="text-lg sm:text-2xl font-extrabold text-amber-400 font-mono">{monthTotals.totalUnexcusedHours}</span>
-                    <span className="text-[10px] sm:text-xs text-slate-400">акад. ч. (×2)</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 shadow-lg">
                   <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-sky-300/80">Уважительные</div>
                   <div className="mt-1 flex items-baseline justify-between">
                     <span className="text-lg sm:text-2xl font-extrabold text-sky-400 font-mono">{monthTotals.totalExcused}</span>
@@ -975,7 +1017,7 @@
                 </div>
 
                 {activeTariff > 0 && (
-                  <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 shadow-lg col-span-2 lg:col-span-1">
+                  <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-3 sm:p-4 shadow-lg">
                     <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-300/80">Сумма отработок</div>
                     <div className="mt-1 flex items-baseline justify-between">
                       <span className="text-lg sm:text-2xl font-extrabold text-emerald-400 font-mono">
@@ -1208,7 +1250,7 @@
                               )}
                             </td>
 
-                            {/* Неуважительные часы (×2) */}
+                            {/* Неуважительные часы (×2) — индивидуально у каждого студента */}
                             <td className="py-2 px-2 text-center font-mono font-extrabold border-r border-slate-800 bg-slate-950/40">
                               {unexcusedHours > 0 ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -1259,6 +1301,7 @@
                       })}
                     </tbody>
 
+                    {/* Подвал таблицы (без общего счетчика неуважительных часов) */}
                     <tfoot>
                       <tr className="bg-slate-900/95 border-t-2 border-slate-700 font-bold text-xs">
                         <td className="py-3 px-2"></td>
@@ -1282,8 +1325,8 @@
                         <td className="py-3 px-2 text-center font-mono text-rose-400 text-sm border-r border-slate-800">
                           {monthTotals.totalUnexcused}
                         </td>
-                        <td className="py-3 px-2 text-center font-mono text-amber-400 text-sm border-r border-slate-800">
-                          {monthTotals.totalUnexcusedHours} ч.
+                        <td className="py-3 px-2 text-center font-mono text-slate-600 border-r border-slate-800" title="Общий счетчик неуважительных часов отключен">
+                          —
                         </td>
                         <td className="py-3 px-2 text-center font-mono text-sky-400 border-r border-slate-800">
                           {monthTotals.totalExcused}
@@ -1306,7 +1349,7 @@
             )}
 
             {/* ========================================================================= */}
-            {/* ВИД 4: УГОЛОК АДМИНИСТРАТОРА (КАЛЕНДАРЬ СПРАВОК + УПРАВЛЕНИЕ)             */}
+            {/* ВИД 4: УГОЛОК АДМИНИСТРАТОРА (КАЛЕНДАРЬ ПО ДНЯМ НЕДЕЛИ + УПРАВЛЕНИЕ)      */}
             {/* ========================================================================= */}
             {viewMode === "admin" && isAdmin && (
               <div className="space-y-4">
@@ -1317,10 +1360,10 @@
                     <div>
                       <h2 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
                         <span>📅</span>
-                        <span>Календарь закрытия дней ({currentMonth})</span>
+                        <span>Календарь закрытия дней ({currentMonth} {monthObj.year})</span>
                       </h2>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Выберите студента и дату (или несколько дат), чтобы в один клик перевести все пары за эти дни в «Уважительную причину»
+                        Выберите студента и дату (или выделите диапазон через <strong>Shift + Клик</strong>), чтобы перевести пары в «Уважительную причину»
                       </p>
                     </div>
                     <div className="flex items-center gap-2 text-[11px]">
@@ -1333,16 +1376,30 @@
                     </div>
                   </div>
 
-                  {/* Шаг 1: Выбор режима (Все студенты по дате ИЛИ Конкретная фамилия) */}
+                  {/* Шаг 1: Выбор студента с удобным ползунком прокрутки на ПК + быстрым списком */}
                   <div className="space-y-2">
-                    <div className="text-xs font-bold text-indigo-300">
-                      1. Кому закрываем дни:
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-indigo-300">
+                        1. Кому закрываем дни (используйте ползунок внизу или список справа):
+                      </span>
+                      <select
+                        value={calStudent}
+                        onChange={e => setCalStudent(e.target.value)}
+                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="ALL">👥 Все студенты (по дате)</option>
+                        {STUDENTS.map((st, i) => (
+                          <option key={st} value={st}>{i + 1}. {st}</option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+
+                    {/* Лента студентов с видимым ползунком cal-scrollbar для удобной работы мышкой на ПК */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto cal-scrollbar pb-3 pt-0.5">
                       <button
                         type="button"
                         onClick={() => setCalStudent("ALL")}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition active:scale-95 ${
+                        className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition active:scale-95 shrink-0 ${
                           calStudent === "ALL"
                             ? "bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30"
                             : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
@@ -1359,7 +1416,7 @@
                             type="button"
                             key={st}
                             onClick={() => setCalStudent(st)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition flex items-center gap-1.5 active:scale-95 ${
+                            className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition flex items-center gap-1.5 active:scale-95 shrink-0 ${
                               isSelected
                                 ? "bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30"
                                 : unexcused > 0
@@ -1390,16 +1447,16 @@
                     </div>
                   </div>
 
-                  {/* Шаг 2: Сетка чисел месяца + управление выбранными днями */}
+                  {/* Шаг 2: Реальная сетка календаря по дням недели (Пн–Вс) + управление выбранными днями */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                     
-                    {/* Сетка календаря (7 столбцов) */}
+                    {/* Сетка календаря с привязкой к Пн–Вс */}
                     <div className="lg:col-span-7 bg-slate-950/70 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span className="font-bold text-slate-300">
                           2. Выберите числа месяца ({calSelectedDates.length} выбр.):
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <button
                             type="button"
                             onClick={selectAllDaysWithAbsences}
@@ -1410,7 +1467,10 @@
                           {calSelectedDates.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => setCalSelectedDates([])}
+                              onClick={() => {
+                                setCalSelectedDates([]);
+                                setLastClickedDayNum(null);
+                              }}
                               className="text-rose-400 hover:text-rose-300 font-semibold underline"
                             >
                               Сбросить
@@ -1419,7 +1479,34 @@
                         </div>
                       </div>
 
+                      {/* Шапка дней недели: Пн Вт Ср Чт Пт Сб Вс */}
+                      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center pt-1">
+                        {WEEKDAYS.map((wd, idx) => (
+                          <div
+                            key={wd}
+                            className={`text-[11px] font-extrabold uppercase tracking-wider py-1 rounded-lg ${
+                              idx === 6
+                                ? "text-rose-400/80 bg-rose-500/5"
+                                : idx === 5
+                                  ? "text-indigo-300/80 bg-slate-900/40"
+                                  : "text-slate-400 bg-slate-900/40"
+                            }`}
+                          >
+                            {wd}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Ячейки чисел месяца со сдвигом первого дня недели */}
                       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                        {/* Пустые ячейки-отступы до 1-го числа месяца */}
+                        {Array.from({ length: monthObj.offset }).map((_, emptyIdx) => (
+                          <div
+                            key={`empty-${emptyIdx}`}
+                            className="h-12 sm:h-14 rounded-xl bg-slate-900/20 border border-slate-900/40 pointer-events-none"
+                          />
+                        ))}
+
                         {calendarDaysData.map(day => {
                           const isSelected = calSelectedDates.includes(day.dateStr);
                           const hasUnexcused = day.unexcusedCount > 0;
@@ -1429,7 +1516,8 @@
                             <button
                               type="button"
                               key={day.dateStr}
-                              onClick={() => toggleCalDate(day.dateStr)}
+                              onClick={(e) => handleCalendarDayClick(day, e)}
+                              title="Клик — выбрать день. Shift + Клик — выделить диапазон дней."
                               className={`relative h-12 sm:h-14 rounded-xl border font-mono flex flex-col items-center justify-center transition active:scale-95 select-none ${
                                 isSelected
                                   ? "bg-indigo-600 border-indigo-300 text-white shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-400/50"
@@ -1437,7 +1525,9 @@
                                     ? "bg-rose-500/10 border-rose-500/40 text-slate-100 hover:border-rose-400"
                                     : hasExcused
                                       ? "bg-sky-500/10 border-sky-500/40 text-slate-200 hover:border-sky-400"
-                                      : "bg-slate-900/70 border-slate-800/80 text-slate-500 hover:border-slate-700 hover:text-slate-300"
+                                      : day.isSunday
+                                        ? "bg-slate-950/60 border-slate-800/50 text-rose-400/50 hover:border-slate-700"
+                                        : "bg-slate-900/70 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:text-slate-200"
                               }`}
                             >
                               <span className="text-xs sm:text-sm font-extrabold">{day.dayNum}</span>
@@ -1465,30 +1555,34 @@
                           );
                         })}
                       </div>
+
+                      <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
+                        <span>💡 На ПК: зажмите <strong className="text-slate-200">Shift</strong> и кликните на второе число, чтобы выделить диапазон</span>
+                      </div>
                     </div>
 
                     {/* Правая колонка: Список найденных пар за выбранные дни и кнопки перевода в Уважительные */}
-                    <div className="lg:col-span-5 bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3 flex flex-col justify-between min-h-[260px]">
+                    <div className="lg:col-span-5 bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3 flex flex-col justify-between min-h-[290px]">
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                           <span className="text-xs font-bold text-slate-200">
                             3. Пары за выбранные дни:
                           </span>
-                          <span className="text-xs font-mono text-indigo-400">
-                            {calSelectedDates.length > 0 ? calSelectedDates.join(", ") : "Дни не выбраны"}
+                          <span className="text-xs font-mono text-indigo-400 truncate max-w-[200px]">
+                            {calSelectedDates.length > 0 ? `${calSelectedDates.length} дн. выбр.` : "Дни не выбраны"}
                           </span>
                         </div>
 
                         {calSelectedDates.length === 0 ? (
-                          <div className="py-10 text-center text-xs text-slate-500">
-                            Нажмите на одно или несколько чисел в календаре слева, чтобы увидеть все пропуски за эти даты.
+                          <div className="py-12 text-center text-xs text-slate-500">
+                            Нажмите на одно число (или выделите диапазон через Shift + Клик) в календаре слева, чтобы увидеть все пропуски за эти даты.
                           </div>
                         ) : calendarMatchedRecords.length === 0 ? (
-                          <div className="py-10 text-center text-xs text-slate-500">
+                          <div className="py-12 text-center text-xs text-slate-500">
                             В выбранные даты ({calSelectedDates.join(", ")}) у {calStudent === "ALL" ? "группы" : `студента ${calStudent}`} нет записанных пропусков.
                           </div>
                         ) : (
-                          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                             {calendarMatchedRecords.map(rec => (
                               <div
                                 key={rec.student}
@@ -1564,7 +1658,7 @@
                 {/* НИЖНИЕ ДВА БЛОКА АДМИНИСТРАТОРА */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   
-                  {/* Блок 1: Быстрые действия и калькулятор BYN */}
+                  {/* Блок 1: Быстрые действия, калькулятор BYN и очистка месяца */}
                   <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                       <div>
@@ -1572,7 +1666,7 @@
                           <span>⚡</span>
                           <span>Управление ведомостью</span>
                         </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">Быстрый ввод пар, тарифы и выгрузка</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Быстрый ввод пар, тарифы, выгрузка и очистка месяца</p>
                       </div>
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                         Устройство привязано
@@ -1641,8 +1735,8 @@
                       </p>
                     </div>
 
-                    {/* Инструменты выгрузки и отчетов */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    {/* Инструменты выгрузки, отчетов и очистки месяца */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
                       <button
                         onClick={() => setSummaryModalOpen(true)}
                         className="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex flex-col items-center gap-1 active:scale-95 transition"
@@ -1672,6 +1766,15 @@
                         <span>Импорт базы</span>
                         <input type="file" accept=".json" onChange={importJSONBackup} className="hidden" />
                       </label>
+
+                      <button
+                        onClick={handleClearCurrentMonth}
+                        className="p-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-bold text-rose-300 flex flex-col items-center gap-1 active:scale-95 transition col-span-2 sm:col-span-1"
+                        title={`Удалить все записи за ${currentMonth}`}
+                      >
+                        <span className="text-base">🗑️</span>
+                        <span>Очистить {currentMonth.slice(0, 3)}.</span>
+                      </button>
                     </div>
                   </div>
 
